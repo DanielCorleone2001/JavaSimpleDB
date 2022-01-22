@@ -380,7 +380,6 @@ file as you will need to access these objects.
 
 ***
 
-
 At this point, your code should pass the unit tests TupleTest and TupleDescTest. At this point, modifyRecordId() should
 fail because you havn't implemented it yet.
 
@@ -402,7 +401,7 @@ using `Database.getBufferPool()`).
 
 * src/java/simpledb/common/Catalog.java
 
-*** 
+***
 
 At this point, your code should pass the unit tests in CatalogTest.
 
@@ -461,7 +460,6 @@ initialized.)  Pages of `HeapFile` objects are of type `HeapPage` which implemen
 stored in the buffer pool but are read and written by the `HeapFile` class.
 
 <p>
-
 SimpleDB stores heap files on disk in more or less the same format they are stored in memory. Each file consists of page
 data arranged consecutively on disk. Each page consists of one or more bytes representing the header, followed by the _
 page size_ bytes of actual page content. Each tuple requires _tuple size_ * 8 bits for its content and 1 bit for the
@@ -495,7 +493,6 @@ The ceiling operation rounds up to the nearest integer number of bytes (we never
 information.)
 
 <p>
-
 The low (least significant) bits of each byte represents the status of the slots that are earlier in the file. Hence,
 the lowest bit of the first byte represents whether or not the first slot in the page is in use. The second lowest bit
 of the first byte represents whether or not the second slot in the page is in use, and so on. Also, note that the
@@ -516,7 +513,6 @@ are [big-endian](http://en.wikipedia.org/wiki/Endianness).
 
 ***
 
-
 Although you will not use them directly in Lab 1, we ask you to implement <tt>getNumEmptySlots()</tt> and <tt>
 isSlotUsed()</tt> in HeapPage. These require pushing around bits in the page header. You may find it helpful to look at
 the other methods that have been provided in HeapPage or in <tt>src/simpledb/HeapFileEncoder.java</tt> to understand the
@@ -529,7 +525,6 @@ At this point, your code should pass the unit tests in HeapPageIdTest, RecordIDT
 
 
 <p> 
-
 After you have implemented <tt>HeapPage</tt>, you will write methods for <tt>HeapFile</tt> in this lab to calculate the
 number of pages in a file and to read a page from the file. You will then be able to fetch tuples from a file stored on
 disk.
@@ -542,7 +537,7 @@ disk.
 
 * src/java/simpledb/storage/HeapFile.java
 
-*** 
+***
 
 To read a page from disk, you will first need to calculate the correct offset in the file. Hint: you will need random
 access to the file in order to read and write pages at arbitrary offsets. You should not call BufferPool methods when
@@ -627,42 +622,43 @@ Here, the argument "3" tells conver that the input has 3 columns.
 <p>
 The following code implements a simple selection query over this file. This code is equivalent to the SQL statement `SELECT * FROM some_data_file`.
 
-```
+```java
 package simpledb;
+
 import java.io.*;
 
 public class test {
 
-    public static void main(String[] argv) {
+  public static void main(String[] argv) {
 
-        // construct a 3-column table schema
-        Type types[] = new Type[]{ Type.INT_TYPE, Type.INT_TYPE, Type.INT_TYPE };
-        String names[] = new String[]{ "field0", "field1", "field2" };
-        TupleDesc descriptor = new TupleDesc(types, names);
+    // construct a 3-column table schema
+    Type types[] = new Type[]{Type.INT_TYPE, Type.INT_TYPE, Type.INT_TYPE};
+    String names[] = new String[]{"field0", "field1", "field2"};
+    TupleDesc descriptor = new TupleDesc(types, names);
 
-        // create the table, associate it with some_data_file.dat
-        // and tell the catalog about the schema of this table.
-        HeapFile table1 = new HeapFile(new File("some_data_file.dat"), descriptor);
-        Database.getCatalog().addTable(table1, "test");
+    // create the table, associate it with some_data_file.txt
+    // and tell the catalog about the schema of this table.
+    HeapFile table1 = new HeapFile(new File("some_data_file.txt"), descriptor);
+    Database.getCatalog().addTable(table1, "test");
 
-        // construct the query: we use a simple SeqScan, which spoonfeeds
-        // tuples via its iterator.
-        TransactionId tid = new TransactionId();
-        SeqScan f = new SeqScan(tid, table1.getId());
+    // construct the query: we use a simple SeqScan, which spoonfeeds
+    // tuples via its iterator.
+    TransactionId tid = new TransactionId();
+    SeqScan f = new SeqScan(tid, table1.getId());
 
-        try {
-            // and run it
-            f.open();
-            while (f.hasNext()) {
-                Tuple tup = f.next();
-                System.out.println(tup);
-            }
-            f.close();
-            Database.getBufferPool().transactionComplete(tid);
-        } catch (Exception e) {
-            System.out.println ("Exception : " + e);
-        }
+    try {
+      // and run it
+      f.open();
+      while (f.hasNext()) {
+        Tuple tup = f.next();
+        System.out.println(tup);
+      }
+      f.close();
+      Database.getBufferPool().transactionComplete(tid);
+    } catch (Exception e) {
+      System.out.println("Exception : " + e);
     }
+  }
 
 }
 ```
@@ -757,3 +753,4 @@ grade will be based on the quality of your writeup and our subjective evaluation
 will also be published on gradescope after we finish grading your assignment.
 
 We had a lot of fun designing this assignment, and we hope you enjoy hacking on it!
+
