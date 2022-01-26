@@ -1,5 +1,6 @@
 package simpledb.storage;
 
+import simpledb.storage.HeapPage;
 import simpledb.common.Database;
 import simpledb.common.DbException;
 import simpledb.common.Debug;
@@ -110,10 +111,27 @@ public class HeapFile implements DbFile {
         throw new IllegalArgumentException(String.format("table %d page %d is invalid", tableID, pageNumber));
     }
 
-    // see DbFile.java for javadocs
+
+    /**
+     * Push the specified page to disk.
+     *
+     * @param page The page to write.
+     *             page.getId().pageno() specifies the offset into the file where the page should be written.
+     * @throws IOException if the write fails
+     */
     public void writePage(Page page) throws IOException {
         // some code goes here
         // not necessary for lab1
+        int pageNumber = page.getId().getPageNumber();
+        if (pageNumber > numPages()) {
+            throw new IllegalArgumentException("page is not in the heap file or page'id in wrong");
+        }
+
+        RandomAccessFile randomAccessFile = new RandomAccessFile(file, "rw");
+        randomAccessFile.seek(pageNumber * BufferPool.getPageSize());
+        byte[] pageData = page.getPageData();
+        randomAccessFile.write(pageData);
+        randomAccessFile.close();
     }
 
     /**
@@ -122,133 +140,165 @@ public class HeapFile implements DbFile {
     public int numPages() {
         // some code goes here
         long fileLen = this.file.length();
-        int numsPages = (int)Math.floor(fileLen * 1.0 / BufferPool.getPageSize());
+        int numsPages = (int) Math.floor(fileLen * 1.0 / BufferPool.getPageSize());
         return numsPages;
     }
 
-    // see DbFile.java for javadocs
-    public List<Page> insertTuple(TransactionId tid, Tuple t)
-            throws DbException, IOException, TransactionAbortedException {
+    /**
+     * Inserts the specified tuple to the file on behalf of transaction.
+     * This method will acquire a lock on the affected pages of the file, and
+     * may block until the lock can be acquired.
+     *
+     * @param tid The transaction performing the update
+     * @param t   The tuple to add.  This tuple should be updated to reflect that
+     *            it is now stored in this file.
+     * @return An ArrayList contain the pages that were modified
+     * @throws DbException if the tuple cannot be added
+     * @throws IOException if the needed file can't be read/written
+     */
+    public List<Page> insertTuple(TransactionId tid, Tuple t) throws DbException, IOException, TransactionAbortedException {
         // some code goes here
-        return null;
-        // not necessary for lab1
-    }
+        ArrayList<Page> list = new ArrayList<>();
+        for (int i = 0; i < numPages(); i++) {
+            HeapPageId heapPageId = new HeapPageId(this.getId(), i);
+            HeapPage heapPage = (HeapPage) Database.getBufferPool().getPage(tid, heapPageId, Permissions.READ_WRITE);
+            if (heapPage.getNumEmptySlots() == 0) continue;
 
-    // see DbFile.java for javadocs
-    public ArrayList<Page> deleteTuple(TransactionId tid, Tuple t) throws DbException,
-            TransactionAbortedException {
-        // some code goes here
-        return null;
-        // not necessary for lab1
-    }
+            heapPage.insertTuple(t);
+            list.add(heapPage);
+            return list;
+        }
 
-    // see DbFile.java for javadocs
-    public DbFileIterator iterator(TransactionId tid) {
-        // some code goes here
-        DbFileIterator iterator = new HeapFileIterator(tid, this);
-        return iterator;
+        // create a empty page and load with 0
+        BufferedOutputStream bufferOS = new BufferedOutputStream(new FileOutputStream(this.file, true));
+        byte[] emptyData = HeapPage.createEmptyPageData();
+        bufferOS.write(emptyData);
+        bufferOS.close();
+
+        // load into the BufferPool
+        HeapPage page = (HeapPage) Database.getBufferPool().getPage(tid, new HeapPageId(getId(), numPages() - 1), Permissions.READ_WRITE);
+        page.insertTuple(t);
+        list.add(page);
+        return list;
+        // not necessary for lab1
     }
 
     /**
-     * use to iterator all the tuples of HeapFile
-     * read page from BufferPool, or will occur Out of Memory !!!
-     * because Physical Memory maybe can't load all tuples
+     * Removes the specified tuple from the file on behalf of the specified
+     * transaction.
+     * This method will acquire a lock on the affected pages of the file, and
+     * may block until the lock can be acquired.
+     *
+     * @param tid The transaction performing the update
+     * @param t   The tuple to delete.  This tuple should be updated to reflect that
+     *            it is no longer stored on any page.
+     * @return An ArrayList contain the pages that were modified
+     * @throws DbException if the tuple cannot be deleted or is not a member
+     *                     of the file
      */
-    public static class HeapFileIterator implements DbFileIterator {
-        private final TransactionId transactionId;
+    public ArrayList<Page> deleteTuple(TransactionId tid, Tuple t) throws DbException, TransactionAbortedException {
+        // some code goes here
+        ArrayList<Page> list = new ArrayList<>();
+        HeapPage page = (HeapPage) Database.getBufferPool().getPage(tid, t.getRecordId().getPageId(), Permissions.READ_WRITE);
+        page.deleteTuple(t);
+        list.add(page);
+        return list;
+        // not necessary for lab1
+    }
+
+    /**
+     * Returns an iterator over all the tuples stored in this DbFile. The
+     * iterator must use {@link BufferPool#getPage}, rather than
+     * {@link #readPage} to iterate through the pages.
+     *
+     * @return an iterator over all the tuples stored in this DbFile.
+     */
+    public DbFileIterator iterator(TransactionId tid) {
+        // some code goes here
+        DbFileIterator iterator = new HeapFileIterator(this, tid);
+        return iterator;
+    }
+
+
+    private static final class HeapFileIterator implements DbFileIterator {
 
         private final HeapFile heapFile;
 
-        private Iterator<Tuple> iterator;
+        private final TransactionId tid;
 
-        private int pageNum;
+        private Iterator<Tuple> it;
 
-        /**
-         * Constructor of HeapFileIterator
-         * @param transactionId
-         * @param heapFile target HeapFile
-         */
-        public HeapFileIterator(TransactionId transactionId, HeapFile heapFile) {
-            this.transactionId = transactionId;
-            this.heapFile = heapFile;
+        private int whichPage;
+
+        public HeapFileIterator(HeapFile file, TransactionId tid) {
+            this.heapFile = file;
+            this.tid = tid;
         }
 
         /**
-         * load tuple iterator from page which fetch from BufferPool
-         * @param pageNum target PageNum, start from 0
-         * @return Iterator of All tuples of the page which fetch from BufferPool
-         * @throws DbException pageNum is invalid
-         * @throws TransactionAbortedException
-         */
-        private Iterator<Tuple> getTupleIterator(int pageNum) throws DbException, TransactionAbortedException {
-            if (pageNum < 0 || pageNum >= this.heapFile.numPages()) {
-                throw new DbException("pageNum {" + pageNum + "} is not valid");
-            }
-
-            HeapPageId heapPageId = new HeapPageId(this.heapFile.getId(), pageNum);
-            HeapPage page = (HeapPage) Database.getBufferPool().getPage(this.transactionId, heapPageId, Permissions.READ_ONLY);
-            if (page == null) {
-                throw  new DbException("can't find match page with pageNum {" + pageNum + "}");
-            }
-            return page.iterator();
-        }
-
-        /**
-         *  Opens the iterator
-         * @throws DbException  when there are problems opening/accessing the database.
-         * @throws TransactionAbortedException when there are problems opening/accessing the database.
+         * Opens the iterator
+         *
+         * @throws DbException when there are problems opening/accessing the database.
          */
         @Override
         public void open() throws DbException, TransactionAbortedException {
-            this.pageNum = 0;
-            iterator = getTupleIterator(pageNum);
+            whichPage = 0;
+            it = getPageTuples(whichPage);
+        }
+
+        private Iterator<Tuple> getPageTuples(int pageNumber) throws DbException, TransactionAbortedException {
+            if (pageNumber >= 0 && pageNumber < heapFile.numPages()) {
+                HeapPageId pid = new HeapPageId(heapFile.getId(), pageNumber);
+                HeapPage page = (HeapPage) Database.getBufferPool().getPage(tid, pid, Permissions.READ_ONLY);
+                return page.iterator();
+            } else {
+                throw new DbException(String.format("heapfile %d does not contain page %d!", pageNumber, heapFile.getId()));
+            }
         }
 
         /**
-         * check Has next or Not
-         * @return true if there are more tuples available, false if no more tuples or iterator isn't open
-         * @throws DbException
-         * @throws TransactionAbortedException
+         * @return true if there are more tuples available, false if no more tuples or iterator isn't open.
          */
         @Override
         public boolean hasNext() throws DbException, TransactionAbortedException {
-            if (this.iterator == null) return false; // iterator is not initial from getTupleIterator()
-
-            if (this.pageNum >= heapFile.numPages()) return false; // pageNum is out of HeapFile len
-
-            // at the end of iterator
-            if (!this.iterator.hasNext() && pageNum == this.heapFile.numPages() - 1) return false;
-
-            return true;
+            if (it == null) {
+                return false;
+            }
+            if (!it.hasNext()) {
+                while (whichPage < (heapFile.numPages() - 1)) {
+                    whichPage++;
+                    it = getPageTuples(whichPage);
+                    if (it.hasNext()) {
+                        return it.hasNext();
+                    }
+                }
+                if (whichPage >= (heapFile.numPages() - 1)) {
+                    return false;
+                }
+            } else {
+                return true;
+            }
+            return false;
         }
 
         /**
-         *  Gets the next tuple from the operator (typically implementing by reading
-         *  from a child operator or an access method).
+         * Gets the next tuple from the operator (typically implementing by reading
+         * from a child operator or an access method).
+         *
          * @return The next tuple in the iterator.
-         * @throws DbException
-         * @throws TransactionAbortedException
          * @throws NoSuchElementException if there are no more tuples
          */
         @Override
         public Tuple next() throws DbException, TransactionAbortedException, NoSuchElementException {
-            if(this.iterator == null) throw new NoSuchElementException("file not open, make sure open() before invoke this");
-
-            if (!this.iterator.hasNext()) { // this page's iterator is null, fetch next page from BufferPool and read its tuple
-                if (this.pageNum < this.heapFile.numPages() - 1) {
-                    pageNum++;
-                    this.iterator = getTupleIterator(pageNum);
-                } else {
-                    return null;
-                }
+            if (it == null || !it.hasNext()) {
+                throw new NoSuchElementException();
             }
-            return this.iterator.next();
+            return it.next();
         }
 
         /**
          * Resets the iterator to the start.
          * @throws DbException When rewind is unsupported.
-         * @throws TransactionAbortedException
          */
         @Override
         public void rewind() throws DbException, TransactionAbortedException {
@@ -261,8 +311,14 @@ public class HeapFile implements DbFile {
          */
         @Override
         public void close() {
-            this.iterator = null;
+            it = null;
         }
     }
+
+
 }
+
+
+
+
 

@@ -1,5 +1,6 @@
 package simpledb.storage;
 
+import com.sun.org.apache.xerces.internal.impl.dv.DVFactoryException;
 import simpledb.common.Database;
 import simpledb.common.DbException;
 import simpledb.common.Debug;
@@ -18,14 +19,23 @@ import java.io.*;
  */
 public class HeapPage implements Page {
 
-    final HeapPageId pid;
-    final TupleDesc td;
-    final byte[] header;
-    final Tuple[] tuples;
-    final int numSlots;
+    private final HeapPageId pid;
 
-    byte[] oldData;
+    private final TupleDesc td;
+
+    private final byte[] header;
+
+    private final Tuple[] tuples;
+
+    private final int numSlots;
+
+    private byte[] oldData;
+
     private final Byte oldDataLock = (byte) 0;
+
+    private boolean dirty;
+
+    private TransactionId tid;
 
     /**
      * Create a HeapPage from a set of bytes of data read from disk.
@@ -89,7 +99,7 @@ public class HeapPage implements Page {
 
         // some code goes here
         int tuple_per_page = getNumTuples();
-        int header_size = (int)Math.ceil(tuple_per_page * 1.0 / 8);
+        int header_size = (int) Math.ceil(tuple_per_page * 1.0 / 8);
         return header_size;
     }
 
@@ -257,6 +267,17 @@ public class HeapPage implements Page {
     public void deleteTuple(Tuple t) throws DbException {
         // some code goes here
         // not necessary for lab1
+        RecordId recordId = t.getRecordId();
+        int tupleIndex = recordId.getTupleNumber();
+        if (recordId != null && pid.equals(recordId.getPageId())) {
+            if (tupleIndex < getNumTuples() && isSlotUsed(tupleIndex)) {
+                tuples[tupleIndex] = null;
+                markSlotUsed(tupleIndex, false);
+                return;
+            }
+            throw new DbException("can't find tuple in the page");
+        }
+        throw new DbException("can't find tuple in the page");
     }
 
     /**
@@ -270,6 +291,17 @@ public class HeapPage implements Page {
     public void insertTuple(Tuple t) throws DbException {
         // some code goes here
         // not necessary for lab1
+        if (getNumEmptySlots() == 0) throw new DbException("Not enough space to insert tuple");
+        if (!t.getTupleDesc().equals(this.td)) throw new DbException("Tuple's Description is not match for this page");
+
+        for (int i = 0; i < tuples.length; i++) {
+            if (!isSlotUsed(i)) {
+                markSlotUsed(i,  true);
+                tuples[i] = t;
+                tuples[i].setRecordId(new RecordId(pid, i));
+                break;
+            }
+        }
     }
 
     /**
@@ -279,6 +311,8 @@ public class HeapPage implements Page {
     public void markDirty(boolean dirty, TransactionId tid) {
         // some code goes here
         // not necessary for lab1
+        this.dirty = dirty;
+        this.tid = tid;
     }
 
     /**
@@ -287,6 +321,8 @@ public class HeapPage implements Page {
     public TransactionId isDirty() {
         // some code goes here
         // Not necessary for lab1
+        if (this.dirty) return this.tid;
+
         return null;
     }
 
@@ -319,6 +355,13 @@ public class HeapPage implements Page {
     private void markSlotUsed(int i, boolean value) {
         // some code goes here
         // not necessary for lab1
+        int index = Math.floorDiv(i, 8);
+        byte b = header[index];
+        byte mask = (byte) (1 << (i % 8));
+
+        // change header's bitmap
+        if (value) header[index] = (byte) (b | mask);
+        else header[index] = (byte) (b & (~mask));
     }
 
     /**
@@ -333,6 +376,7 @@ public class HeapPage implements Page {
         }
         return list.iterator();
     }
-
 }
+
+
 
