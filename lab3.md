@@ -37,6 +37,7 @@ $ git pull upstream master
 ```
 
 ### 1.1. Implementation hints
+
 We suggest exercises along this document to guide your implementation, but you may find that a different order makes
 more sense for you. As before, we will grade your assignment by looking at your code and
 verifying that you have passed the test for the ant targets <tt>test</tt> and
@@ -86,6 +87,7 @@ will convert the query into a logical plan representation and then call
 your query optimizer to generate an optimal plan.
 
 ### 2.1 Overall Optimizer Structure
+
 Before getting started with the implementation, you need to understand the overall structure of the SimpleDB
 optimizer.  The overall control flow of the SimpleDB modules of the parser and optimizer is shown in Figure 1.
 
@@ -109,6 +111,7 @@ the basic operation is as follows:
     <tt>LogicalPlan</tt> instance it has constructed.  The <tt>physicalPlan</tt> method returns a
     <tt>DBIterator</tt> object that can be used to actually run the query.
     
+
 In the exercises to come, you will implement the methods that help
 <tt>physicalPlan</tt> devise an optimal plan.
 
@@ -302,7 +305,7 @@ While implementing your simple solution, you  should keep in mind the following:
 
 <!--  
   * <a name="change">The following three paragraphs are different in this version of the lab. </a> *
-  .-->
+    .-->
 *  For equality joins, when one of the attributes is a primary key, the number of tuples produced by the join cannot
    be larger than the cardinality of the non-primary key attribute.
 * For equality joins when there is no primary key, it's hard to say much about what the size of the output

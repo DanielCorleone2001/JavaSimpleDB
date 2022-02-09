@@ -20,6 +20,14 @@
 >
 >最后，您可能会注意到本实验中的迭代器扩展了 Operator 类，而不是实现 OpIterator 接口。因为 next/hasNext 的实现往往是重复的、烦人的、容易出错的，Operator 通用地实现了这个逻辑，只需要你实现一个更简单的 readNext。随意使用这种实现风格，或者如果您愿意，也可以只实现 OpIterator 接口。要实现 OpIterator 接口，请从迭代器类中移除 extends Operator，并在其位置放置实现 OpIterator。
 
+这里使用的是火山模型，以数据流的模型不断调用next方法获取数据流。
+
+缺点：每一条数据的获取都依赖函数调用，当数据量大的时候就会有很大的性能问题。
+
+一般的DB都是用这种模型：MySQL等。
+
+![image-20220126131906114](https://gitee.com/daniel2001/picture-bed/raw/master/image-20220126131906114.png)
+
 ## lab
 
 ### exercise1
