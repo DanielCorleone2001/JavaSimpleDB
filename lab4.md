@@ -80,6 +80,7 @@ As we discussed in class, this means that:
 *  On transaction commit, you should force dirty pages to disk (e.g.,
    write the pages out) (this is FORCE).
    
+
 To further simplify your life, you may assume that SimpleDB will not crash
 while processing a `transactionComplete` command.  Note that
 these three points mean that you do not need to implement log-based
@@ -455,8 +456,8 @@ You can also post on the class page on Piazza if you feel you have run into a bu
   autograder score until you fix them. If this is an issue for you, contact us to discuss options.
   
 * Given that this lab deals with concurrency, we will rerun the autograder after the due date to discourage
-trying buggy code until lucky. It is your responsibility to ensure that your code **reliably** passes
-the tests.
+  trying buggy code until lucky. It is your responsibility to ensure that your code **reliably** passes
+  the tests.
   
 * This lab has a higher percentage of manual grading at 50% compared to previous labs. Specifically, we will be
 very unhappy if your concurrency handling is bogus (e.g., inserting Thread.sleep(1000) until a race disappears).

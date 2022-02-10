@@ -4,10 +4,10 @@ import simpledb.common.Database;
 import simpledb.common.Permissions;
 import simpledb.common.DbException;
 import simpledb.common.DeadlockException;
+import simpledb.transaction.LockManager;
 import simpledb.transaction.TransactionAbortedException;
 import simpledb.transaction.TransactionId;
 
-import javax.xml.crypto.Data;
 import java.io.*;
 
 import java.util.ArrayList;
@@ -28,49 +28,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public class BufferPool {
 
     /**
-     * ListNode of BufferPool's Page, to achieved LRU Replace Algorithm
-     */
-    private class ListNode {
-        private PageId id;
-
-        private ListNode next;
-
-        private ListNode prev;
-
-        public ListNode() {
-
-        }
-
-        public ListNode(PageId id, ListNode next, ListNode prev) {
-            this.id = id;
-            this.next = next;
-            this.prev = prev;
-        }
-
-        public ListNode(PageId id) {
-            this.id = id;
-        }
-
-        public ListNode(PageId id, ListNode next) {
-            this.id = id;
-            this.next = next;
-        }
-
-        public PageId getId() {
-            return id;
-        }
-
-        public ListNode getNext() {
-            return next;
-        }
-
-        public ListNode getPrev() {
-            return prev;
-        }
-    }
-
-
-    /**
      * Bytes per page, including header.
      */
     private static final int DEFAULT_PAGE_SIZE = 4096;
@@ -88,11 +45,7 @@ public class BufferPool {
 
     private final ConcurrentHashMap<PageId, Page> map;
 
-    private ListNode head;
-
-    private ListNode tail;
-
-    private int size;
+    private final LockManager lockManager;
 
     /**
      * Creates a BufferPool that caches up to numPages pages.
@@ -103,6 +56,7 @@ public class BufferPool {
         // some code goes here
         this.numPages = numPages;
         map = new ConcurrentHashMap<>();
+        lockManager = new LockManager();
     }
 
     public static int getPageSize() {
@@ -143,6 +97,8 @@ public class BufferPool {
             addToBufferPool(pid, page);
         }
 
+        lockManager.acquire(tid, pid, perm);
+
         return page;
     }
 
@@ -158,6 +114,7 @@ public class BufferPool {
     public void unsafeReleasePage(TransactionId tid, PageId pid) {
         // some code goes here
         // not necessary for lab1|lab2
+        lockManager.release(tid, pid);
     }
 
     /**
@@ -168,6 +125,7 @@ public class BufferPool {
     public void transactionComplete(TransactionId tid) {
         // some code goes here
         // not necessary for lab1|lab2
+        transactionComplete(tid, true);
     }
 
     /**
@@ -176,7 +134,7 @@ public class BufferPool {
     public boolean holdsLock(TransactionId tid, PageId p) {
         // some code goes here
         // not necessary for lab1|lab2
-        return false;
+        return lockManager.hold(tid, p);
     }
 
     /**
@@ -189,6 +147,19 @@ public class BufferPool {
     public void transactionComplete(TransactionId tid, boolean commit) {
         // some code goes here
         // not necessary for lab1|lab2
+        if (commit) {
+            try {
+                flushPages(tid);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        } else {
+            for (Page page : map.values()) {
+                if (tid.equals(page.isDirty())) discardPage(page.getId());
+            }
+        }
+
+        lockManager.releaseAll(tid);
     }
 
     /**
@@ -306,7 +277,12 @@ public class BufferPool {
     public synchronized void flushPages(TransactionId tid) throws IOException {
         // some code goes here
         // not necessary for lab1|lab2
-
+        for (Page page : map.values()) {
+            if (tid.equals(page.isDirty())) {
+                flushPage(page.getId());
+                page.setBeforeImage();
+            }
+        }
     }
 
     /**
@@ -318,7 +294,7 @@ public class BufferPool {
         // not necessary for lab1
         assert map.size() == numPages;
         for (Page page : map.values()) {
-            if (page.isDirty() == null) {
+            if (page.isDirty() == null) { // no steal page is dirty, load to disk
                 map.remove(page.getId());
                 return;
             }

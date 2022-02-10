@@ -158,29 +158,49 @@ public class HeapFile implements DbFile {
      */
     public List<Page> insertTuple(TransactionId tid, Tuple t) throws DbException, IOException, TransactionAbortedException {
         // some code goes here
+//        ArrayList<Page> list = new ArrayList<>();
+//        for (int i = 0; i < numPages(); i++) {
+//            HeapPageId heapPageId = new HeapPageId(this.getId(), i);
+//            HeapPage heapPage = (HeapPage) Database.getBufferPool().getPage(tid, heapPageId, Permissions.READ_WRITE);
+//            if (heapPage.getNumEmptySlots() == 0) {
+//                Database.getBufferPool().unsafeReleasePage(tid, heapPageId); // althrough this is not strict TPL, but it does not matter
+//                continue;
+//            }
+//
+//            heapPage.insertTuple(t);
+//            list.add(heapPage);
+//            return list;
+//        }
+//
+//        // create a empty page and load with 0
+//        BufferedOutputStream bufferOS = new BufferedOutputStream(new FileOutputStream(this.file, true));
+//        byte[] emptyData = HeapPage.createEmptyPageData();
+//        bufferOS.write(emptyData);
+//        bufferOS.close();
+//
+//        // load into the BufferPool
+//        HeapPage page = (HeapPage) Database.getBufferPool().getPage(tid, new HeapPageId(getId(), numPages() - 1), Permissions.READ_WRITE);
+//        page.insertTuple(t);
+//        list.add(page);
+//        return list;
+        // not necessary for lab1
         ArrayList<Page> list = new ArrayList<>();
-        for (int i = 0; i < numPages(); i++) {
-            HeapPageId heapPageId = new HeapPageId(this.getId(), i);
-            HeapPage heapPage = (HeapPage) Database.getBufferPool().getPage(tid, heapPageId, Permissions.READ_WRITE);
-            if (heapPage.getNumEmptySlots() == 0) continue;
-
-            heapPage.insertTuple(t);
-            list.add(heapPage);
-            return list;
+        BufferPool pool = Database.getBufferPool();
+        int tableid = getId();
+        for (int i = 0; i < numPages(); ++i) {
+            HeapPage page = (HeapPage) pool.getPage(tid, new HeapPageId(tableid, i), Permissions.READ_WRITE);
+            if (page.getNumEmptySlots() > 0) {
+                page.insertTuple(t);
+                page.markDirty(true, tid);
+                list.add(page);
+                return list;
+            }
         }
 
-        // create a empty page and load with 0
-        BufferedOutputStream bufferOS = new BufferedOutputStream(new FileOutputStream(this.file, true));
-        byte[] emptyData = HeapPage.createEmptyPageData();
-        bufferOS.write(emptyData);
-        bufferOS.close();
-
-        // load into the BufferPool
-        HeapPage page = (HeapPage) Database.getBufferPool().getPage(tid, new HeapPageId(getId(), numPages() - 1), Permissions.READ_WRITE);
+        HeapPage page = new HeapPage(new HeapPageId(tableid, numPages()), HeapPage.createEmptyPageData());
         page.insertTuple(t);
-        list.add(page);
+        writePage(page);
         return list;
-        // not necessary for lab1
     }
 
     /**
@@ -298,6 +318,7 @@ public class HeapFile implements DbFile {
 
         /**
          * Resets the iterator to the start.
+         *
          * @throws DbException When rewind is unsupported.
          */
         @Override

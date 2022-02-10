@@ -10,7 +10,7 @@ import java.io.*;
 
 public class SimpleDb {
     public static void main (String[] args)
-            throws DbException, TransactionAbortedException {
+            throws DbException, TransactionAbortedException, InterruptedException {
         // convert a file
         switch (args[0]) {
             case "convert":

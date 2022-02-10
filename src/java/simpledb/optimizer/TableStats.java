@@ -90,7 +90,7 @@ public class TableStats {
      * @param ioCostPerPage The cost per page of IO. This doesn't differentiate between
      *                      sequential-scan IO and disk seeks.
      */
-    public TableStats(int tableid, int ioCostPerPage) {
+    public TableStats(int tableid, int ioCostPerPage){
         // For this function, you'll have to get the
         // DbFile for the table in question,
         // then scan through its tuples and calculate
