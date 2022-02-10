@@ -4,11 +4,12 @@ MIT6.830的实现。
 
 ### 笔记
 
-[lab1](https://github.com/DanielCorleone2001/JavaSimpleDB/blob/master/docs/lab1.md)
+- [x] [lab1](https://github.com/DanielCorleone2001/JavaSimpleDB/blob/master/docs/lab1.md) Catalog & HeapFile
+- [x] [lab2](https://github.com/DanielCorleone2001/JavaSimpleDB/blob/master/docs/lab2.md) SQL Operator
+- [x] [lab3](https://github.com/DanielCorleone2001/JavaSimpleDB/blob/master/docs/lab3.md) Query Optimizer
+- [x] [lab4](https://github.com/DanielCorleone2001/JavaSimpleDB/blob/master/docs/lab4.md) Transaction
+- [ ] lab5 B+ Tree Index
+- [ ] lab6 Rollback & Recovery
 
-[lab2](https://github.com/DanielCorleone2001/JavaSimpleDB/blob/master/docs/lab2.md)
 
 
-[lab3](https://github.com/DanielCorleone2001/JavaSimpleDB/blob/master/docs/lab3.md)
-
-[lab4](https://github.com/DanielCorleone2001/JavaSimpleDB/blob/master/docs/lab4.md)
