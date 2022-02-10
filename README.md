@@ -10,3 +10,5 @@ MIT6.830的实现。
 
 
 [lab3](https://github.com/DanielCorleone2001/JavaSimpleDB/blob/master/docs/lab3.md)
+
+[lab4](https://github.com/DanielCorleone2001/JavaSimpleDB/blob/master/docs/lab4.md)
