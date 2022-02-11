@@ -460,6 +460,30 @@ public class LogFile {
             synchronized(this) {
                 preAppend();
                 // some code goes here
+                rollBack(tid.getId());
+            }
+        }
+    }
+
+    private void rollBack(long tid) throws NoSuchElementException, IOException {
+        synchronized (Database.getBufferPool()) {
+            synchronized (this) {
+                Long begin = tidToFirstLogRecord.get(tid);
+                raf.seek(raf.length() - LONG_SIZE); // last record
+                long cur = raf.readLong();
+                while (begin < cur) {   // the first record of tid is BEGIN type
+                    raf.seek(cur);
+                    int recordType = raf.readInt();
+                    long recordTid = raf.readLong();
+                    if (recordType == UPDATE_RECORD && recordTid == tid) {  // roll back
+                        Page beforeImg = readPageData(raf);
+                        Database.getCatalog().getDatabaseFile(beforeImg.getId().getTableId()).writePage(beforeImg);
+                        Database.getBufferPool().discardPage(beforeImg.getId());
+                    }
+                    raf.seek(cur - LONG_SIZE);  // previous file offset
+                    cur = raf.readLong();
+                }
+                raf.seek(currentOffset);
             }
         }
     }
@@ -487,8 +511,80 @@ public class LogFile {
             synchronized (this) {
                 recoveryUndecided = false;
                 // some code goes here
+                currentOffset = raf.length();
+                raf.seek(0);
+                long lastCheckPoint = raf.readLong();
+
+                if (lastCheckPoint == NO_CHECKPOINT_ID) {   // If no check point, set it to start of log file.
+                    lastCheckPoint = LONG_SIZE;
+                }
+
+                // scan from lastCheckPoint
+                Stack<Long> offsets = getFileOffsets(lastCheckPoint, currentOffset);
+
+                HashSet<Long> transactions = new HashSet<>();
+
+                while (!offsets.empty()) {      // redo updates and build the set of loser transactions
+                    long cur = offsets.pop();
+                    raf.seek(cur);
+                    int recordType = raf.readInt();
+                    long recordTid = raf.readLong();
+                    switch (recordType) {
+                        case ABORT_RECORD:
+                            rollBack(recordTid);
+                            transactions.remove(recordTid);
+                            break;
+                        case COMMIT_RECORD:
+                            tidToFirstLogRecord.remove(recordTid);
+                            transactions.remove(recordTid);
+                            break;
+                        case BEGIN_RECORD:
+                            tidToFirstLogRecord.put(recordTid, cur);
+                            transactions.add(recordTid);
+                            break;
+                        case UPDATE_RECORD:     // redo
+                            readPageData(raf);  // before
+                            Page afterImg = readPageData(raf);
+                            Database.getCatalog().getDatabaseFile(afterImg.getId().getTableId()).writePage(afterImg);
+                            break;
+                        case CHECKPOINT_RECORD:
+                            // This checkpoint may contain dirty data
+                            // Eg: t1 starts and updates data before checkpoint, never commit or abort before crash
+                            int transactionNum = raf.readInt();
+                            for (int i = 0; i < transactionNum; ++i) {
+                                recordTid = raf.readLong();
+                                long pos = raf.readLong();
+                                transactions.add(recordTid);
+                                tidToFirstLogRecord.put(recordTid, pos);
+                            }
+                            break;
+                        default:
+                            throw new IOException("Wrong record type");
+                    }
+                }
+
+                // undo the updates of loser transaction
+                // loser: only appears in BEGIN_RECORD but not in COMMIT_RECORD or ABORT_RECORD
+                for (long tid : transactions) {
+                    rollBack(tid);
+                }
             }
-         }
+        }
+    }
+
+    private Stack<Long> getFileOffsets(long start, long end) throws IOException {
+        raf.seek(raf.length() - LONG_SIZE);
+        long cur = raf.readLong();
+        Stack<Long> res = new Stack<>();
+        while (cur >= start) {
+            res.push(cur);
+            if (cur <= LONG_SIZE) {
+                break;
+            }
+            raf.seek(cur - LONG_SIZE);
+            cur = raf.readLong();
+        }
+        return res;
     }
 
     /** Print out a human readable represenation of the log */
