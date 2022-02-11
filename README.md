@@ -11,5 +11,7 @@ MIT6.830的实现。
 - [x] lab5 B+ Tree Index
 - [x] lab6 Rollback & Recovery
 
+Still Contains some test is fail...
+
 
 
