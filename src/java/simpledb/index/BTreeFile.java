@@ -903,28 +903,46 @@ public class BTreeFile implements DbFile {
         // deleteParentEntry() will be useful here
 
         // pull down the parentEntry key
-        BTreeEntry entry = new BTreeEntry(parentEntry.getKey(),
-                leftPage.reverseIterator().next().getRightChild(),
-                rightPage.iterator().next().getLeftChild());
+//        BTreeEntry entry = new BTreeEntry(parentEntry.getKey(),
+//                leftPage.reverseIterator().next().getRightChild(),
+//                rightPage.iterator().next().getLeftChild());
+//        leftPage.insertEntry(entry);
+//
+//        // move entries from right to left
+//        Iterator<BTreeEntry> iter = rightPage.iterator();
+//        while (iter.hasNext()) {
+//            entry = iter.next();
+//            rightPage.deleteKeyAndLeftChild(entry);
+//            leftPage.insertEntry(entry);
+//        }
+//
+//        updateParentPointers(tid, dirtypages, leftPage);
+//
+//        setEmptyPage(tid, dirtypages, rightPage.getId().getPageNumber());
+//
+//        // delete the parent entry
+//        deleteParentEntry(tid, dirtypages, leftPage, parent, parentEntry);
+//
+//        dirtypages.put(leftPage.getId(), leftPage);
+//        dirtypages.put(parent.getId(), parent);
+        //先复制parent entry的key值并设置指针，插入左页面
+        BTreeEntry lastLeftEntry = leftPage.reverseIterator().next();
+        BTreeEntry firstRightEntry = rightPage.iterator().next();
+        BTreeEntry entry = new BTreeEntry(parentEntry.getKey(), lastLeftEntry.getRightChild(), firstRightEntry.getLeftChild());
         leftPage.insertEntry(entry);
 
-        // move entries from right to left
-        Iterator<BTreeEntry> iter = rightPage.iterator();
-        while (iter.hasNext()) {
-            entry = iter.next();
-            rightPage.deleteKeyAndLeftChild(entry);
-            leftPage.insertEntry(entry);
+        //开始将右边的entry转移到左边
+        Iterator<BTreeEntry> it = rightPage.iterator();
+        while (it.hasNext()) {
+            BTreeEntry e = it.next();
+            rightPage.deleteKeyAndLeftChild(e);
+            leftPage.insertEntry(e);
         }
 
+        //更新指针，设置空页面，删除parent entry
         updateParentPointers(tid, dirtypages, leftPage);
-
-        setEmptyPage(tid, dirtypages, rightPage.getId().getPageNumber());
-
-        // delete the parent entry
+        setEmptyPage(tid, dirtypages, rightPage.pid.getPageNumber());
         deleteParentEntry(tid, dirtypages, leftPage, parent, parentEntry);
-
-        dirtypages.put(leftPage.getId(), leftPage);
-        dirtypages.put(parent.getId(), parent);
     }
 
     /**
